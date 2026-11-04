@@ -1,0 +1,2001 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1412">
+<title>Книга первая / Book One</title>
+
+<!-- Тема ставится сразу, до отрисовки, чтобы светлая тема не мигала тёмной при загрузке -->
+<script>
+  try {
+    var s = JSON.parse(localStorage.getItem('reader1:settings') || '{}');
+    if (s.theme) document.documentElement.dataset.theme = s.theme;
+  } catch (e) {}
+</script>
+
+<!-- Библиотека Telegram для мини-приложений. В обычном браузере она ничего не делает -->
+<script src="https://telegram.org/js/telegram-web-app.js" defer onload="window.__onTgSdk && window.__onTgSdk()"></script>
+
+<!-- Шрифты с кириллицей. Без интернета страница возьмёт запасные системные шрифты.
+     На шаге с сервером положим шрифты к себе на хостинг. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+
+<style>
+/* =========================================================
+   1. ЦВЕТА И ПЕРЕМЕННЫЕ
+   Тёмная тема — «болото ночью», светлая — «старая газета 1912».
+   Все цвета меняются здесь, в одном месте.
+   ========================================================= */
+:root {
+  --bg:        #0f1412;
+  --bg-2:      #161d1a;
+  --bar-bg:    rgba(15, 20, 18, .92);
+  --line:      #26312c;
+  --ink:       #c8cfc3;
+  --ink-soft:  #9ba59a;
+  --muted:     #78857b;
+  --accent:    #9dbfae;
+  --accent-ink:#0f1412;
+  --rust:      #b4654e;
+  --eye:       #b9d6c6;
+  --glow:      rgba(157, 191, 174, .55);
+
+  --font-ui:      "PT Sans", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Old Standard TT", "Times New Roman", Georgia, serif;
+
+  /* Настройки чтения — их меняет JavaScript */
+  --read-font: "Literata", Georgia, "Times New Roman", serif;
+  --read-size: 18px;
+  --read-lh:   1.65;
+
+  --bar-h: 52px;
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg:        #e3e1d5;
+  --bg-2:      #d8d6c8;
+  --bar-bg:    rgba(227, 225, 213, .94);
+  --line:      #c4c2b3;
+  --ink:       #23261f;
+  --ink-soft:  #43473f;
+  --muted:     #63675c;
+  --accent:    #36574a;
+  --accent-ink:#eef0e6;
+  --rust:      #8a3a25;
+  --eye:       #23261f;
+  --glow:      rgba(0, 0, 0, 0);
+  color-scheme: light;
+}
+
+/* =========================================================
+   2. БАЗА
+   ========================================================= */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.45 var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .3s, color .3s;
+}
+
+/* Полоса под статус-баром телефона, чтобы текст не просвечивал под часами */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--safe-top);
+  background: var(--bg);
+  z-index: 30;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+button:disabled { cursor: default; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.icon-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+}
+.icon-btn:active { background: var(--bg-2); }
+.aa { font-family: var(--font-display); font-size: 19px; line-height: 1; }
+
+.btn {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 16px;
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-weight: 400;
+}
+.btn:disabled { opacity: .4; }
+.btn + .btn { margin-top: 10px; }
+
+/* =========================================================
+   3. ГЛАЗА В ТЕМНОТЕ (из главы 1)
+   Единственная «живая» деталь: пара глаз моргает,
+   изредка правее проявляется вторая.
+   ========================================================= */
+.eyes {
+  position: relative;
+  height: 10px;
+  margin: 0 0 40px 2px;
+}
+.eyes .pair {
+  position: absolute;
+  top: 0;
+  display: flex;
+  gap: 13px;
+}
+.eyes i {
+  display: block;
+  width: 7px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--eye);
+  box-shadow: 0 0 10px 3px var(--glow);
+}
+.eyes .p1 { left: 0; }
+.eyes .p1 i { animation: blink 7s infinite; }
+.eyes .p2 { left: 68px; top: 5px; opacity: 0; animation: lurk 23s 5s infinite; }
+.eyes .p2 i { width: 6px; height: 4px; }
+
+@keyframes blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93%, 95%      { transform: scaleY(.08); }
+}
+@keyframes lurk {
+  0%, 62%, 100% { opacity: 0; }
+  70%, 84%      { opacity: .7; }
+}
+
+/* =========================================================
+   4. ВХОД 18+
+   ========================================================= */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: calc(var(--safe-top) + 32px) 28px calc(var(--safe-bottom) + 32px);
+  background: var(--bg);
+  overflow-y: auto;
+}
+.gate-in { width: 100%; max-width: 420px; margin: 0 auto; }
+.gate h1 {
+  margin: 0 0 14px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 40px;
+  line-height: 1.05;
+}
+.gate p { margin: 0 0 28px; color: var(--ink-soft); font-size: 17px; }
+
+/* =========================================================
+   5. ОГЛАВЛЕНИЕ
+   ========================================================= */
+.toc {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 6px) 20px calc(var(--safe-bottom) + 48px);
+}
+.toc-top {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 52px;
+  margin-right: -10px;
+}
+.cover { padding: 28px 0 8px; }
+
+.book-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(42px, 12.5vw, 60px);
+  line-height: 1;
+  letter-spacing: -.015em;
+}
+.epigraph { margin: 22px 0 0; max-width: 21em; }
+.epigraph p {
+  margin: 0;
+  font-family: "Literata", Georgia, serif;
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.epigraph cite {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  margin-top: 36px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-align: left;
+}
+.cta b    { font-size: 17px; }
+.cta span { font-size: 14px; opacity: .8; }
+.cta:active { filter: brightness(.92); }
+.cta.is-locked {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.toc-h {
+  margin: 52px 0 6px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 22px;
+}
+.chapters { list-style: none; margin: 0; padding: 0; }
+
+.ch {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr auto;
+  column-gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 58px;
+  padding: 15px 2px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.chapters li:first-child .ch { border-top: 1px solid var(--line); }
+.ch:active { background: var(--bg-2); }
+
+.ch-num   { font-family: var(--font-display); font-size: 18px; color: var(--muted); }
+.ch-title { font-family: var(--font-display); font-size: 20px; line-height: 1.25; }
+.ch-meta  {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ch-meta svg { width: 13px; height: 13px; }
+.ch-bar {
+  grid-column: 2 / -1;
+  height: 2px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.ch-bar i { display: block; height: 100%; background: var(--accent); }
+
+.ch.is-read   .ch-title { color: var(--ink-soft); }
+.ch.is-read   .ch-meta  { color: var(--accent); }
+.ch.is-locked .ch-title,
+.ch.is-locked .ch-num   { color: var(--muted); }
+
+.badge {
+  padding: 3px 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--rust);
+}
+
+/* =========================================================
+   6. ЭКРАН ЧТЕНИЯ
+   ========================================================= */
+.progress {
+  position: fixed;
+  top: var(--safe-top);
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 31;
+  pointer-events: none;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding-top: var(--safe-top);
+  background: var(--bar-bg);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  transition: transform .25s ease;
+}
+.bar.is-hidden { transform: translateY(-100%); }
+.bar-in {
+  display: flex;
+  align-items: center;
+  height: var(--bar-h);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+.bar-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0 4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.article {
+  max-width: calc(34 * var(--read-size));
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + var(--bar-h) + 44px) 22px calc(var(--safe-bottom) + 56px);
+}
+.ch-kicker {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--muted);
+}
+.ch-h1 {
+  margin: 4px 0 36px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(34px, 10vw, 46px);
+  line-height: 1.05;
+  letter-spacing: -.01em;
+}
+
+.prose {
+  font-family: var(--read-font);
+  font-size: var(--read-size);
+  line-height: var(--read-lh);
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+.prose p { margin: 0; text-indent: 1.4em; }
+.prose p:first-child { text-indent: 0; }
+.prose p:first-child::first-letter {
+  float: left;
+  margin: .07em .09em 0 0;
+  font-family: var(--font-display);
+  font-size: 3.3em;
+  line-height: .85;
+  color: var(--accent);
+}
+.prose.is-justify { text-align: justify; }
+.prose .break { margin: 1em 0; text-indent: 0; text-align: center; color: var(--muted); }
+
+.ch-end {
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+.ch-end .cta { margin-top: 0; }
+.end-note { margin: 0; color: var(--muted); font-size: 15px; }
+.end-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 14px;
+}
+.link-btn {
+  min-height: 44px;
+  padding: 10px 0;
+  text-align: left;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+/* =========================================================
+   7. НИЖНИЕ ПАНЕЛИ (настройки, платная глава)
+   ========================================================= */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(4, 7, 6, .6);
+  opacity: 0;
+  transition: opacity .22s;
+}
+.scrim.is-open { opacity: 1; }
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  max-width: 600px;
+  max-height: 88vh;
+  max-height: 88dvh;
+  margin: 0 auto;
+  padding: 8px 20px calc(var(--safe-bottom) + 18px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-2);
+  color: var(--ink);
+  border-radius: 18px 18px 0 0;
+  transform: translateY(100%);
+  transition: transform .26s cubic-bezier(.2, .8, .2, 1);
+}
+.sheet.is-open { transform: none; }
+.sheet:focus { outline: none; }
+.grip { width: 36px; height: 4px; margin: 4px auto 14px; border-radius: 2px; background: var(--line); }
+.sheet h2 {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.field { margin: 0 0 20px; }
+.field-label { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: left;
+}
+.chip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+.swatch[data-theme-v="dark"]  .chip { background: #0f1412; color: #c8cfc3; box-shadow: inset 0 0 0 1px #2c3832; }
+.swatch[data-theme-v="light"] .chip { background: #e3e1d5; color: #23261f; box-shadow: inset 0 0 0 1px #b9b7a8; }
+
+.fonts { display: grid; gap: 8px; }
+.font-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: left;
+}
+.font-opt .sample { font-size: 18px; }
+.font-opt .name   { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.swatch[aria-pressed="true"],
+.font-opt[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper button {
+  width: 64px;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.stepper button:disabled { opacity: .35; }
+.stepper output { flex: 1; text-align: center; font-size: 16px; color: var(--ink-soft); }
+
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.seg button {
+  flex: 1;
+  min-height: 40px;
+  padding: 6px 4px;
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--bg-2);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.danger {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--rust);
+}
+
+.lock-text { margin: 0 0 20px; color: var(--ink-soft); font-size: 16px; }
+.lock-note { margin: 14px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* =========================================================
+   8. ОПЛАТА: карточка подписки, тестовая оплата, код
+   ========================================================= */
+.paywall {
+  padding: 24px 20px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-2);
+}
+.sheet .paywall { padding: 0; border: 0; background: none; }
+
+.pw-kicker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pw-kicker svg { width: 13px; height: 13px; }
+.pw-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.15;
+}
+.pw-perks { margin: 0 0 14px; color: var(--ink-soft); font-size: 16px; }
+.pw-price { margin: 0 0 16px; font-size: 17px; font-weight: 700; }
+.pw-cancel { margin: 12px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+.text-link {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.receipt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.receipt span { display: block; font-size: 13px; color: var(--muted); }
+.receipt-price { font-size: 18px; white-space: nowrap; }
+.sheet-note { margin: 0 0 18px; font-size: 15px; color: var(--ink-soft); }
+
+.input {
+  display: block;
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 700 18px/1.2 var(--font-ui);
+  letter-spacing: .06em;
+}
+.input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field-error { min-height: 20px; margin: 6px 0 10px; font-size: 14px; color: var(--rust); }
+
+.sub-status { margin: 0; font-size: 16px; }
+
+.tr-note {
+  margin: 0 0 26px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-2);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.prose .empty-paid { text-indent: 0; font-style: italic; color: var(--muted); }
+.prose p.empty-paid:first-child::first-letter { float: none; margin: 0; font: inherit; line-height: inherit; color: inherit; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 24px);
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100% - 40px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 15px;
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* Для тех, у кого в системе отключена анимация */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ========== ВХОД 18+ ========== -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-in">
+    <div class="eyes" aria-hidden="true">
+      <span class="pair p1"><i></i><i></i></span>
+      <span class="pair p2"><i></i><i></i></span>
+    </div>
+    <h1 data-i18n="gateTitle"></h1>
+    <p id="gate-text" data-i18n="gateText"></p>
+    <div id="gate-actions">
+      <button class="btn" id="gate-yes" type="button" data-i18n="gateYes"></button>
+      <button class="btn btn-ghost" id="gate-no" type="button" data-i18n="gateNo"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ОГЛАВЛЕНИЕ ========== -->
+<main class="toc" id="toc" hidden>
+  <div class="toc-top">
+    <button class="icon-btn" type="button" data-open-settings data-i18n-aria="appearance"><span class="aa">Аа</span></button>
+  </div>
+
+  <header class="cover">
+    <div class="eyes" aria-hidden="true">
+      <span class="pair p1"><i></i><i></i></span>
+      <span class="pair p2"><i></i><i></i></span>
+    </div>
+    <h1 class="book-title" id="book-title"></h1>
+    <blockquote class="epigraph">
+      <p id="epigraph"></p>
+      <cite id="epigraph-from"></cite>
+    </blockquote>
+    <button class="cta" id="cta" type="button"><b></b><span></span></button>
+  </header>
+
+  <section aria-labelledby="toc-h">
+    <h2 class="toc-h" id="toc-h" data-i18n="contents"></h2>
+    <ol class="chapters" id="chapters"></ol>
+  </section>
+</main>
+
+<!-- ========== ЭКРАН ЧТЕНИЯ ========== -->
+<div id="reader" hidden>
+  <div class="progress" aria-hidden="true"><i id="progress"></i></div>
+
+  <header class="bar" id="bar">
+    <div class="bar-in">
+      <button class="icon-btn" type="button" id="back" data-i18n-aria="back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="bar-title" id="bar-title"></div>
+      <button class="icon-btn" type="button" data-open-settings data-i18n-aria="appearance"><span class="aa">Аа</span></button>
+    </div>
+  </header>
+
+  <article class="article">
+    <p class="ch-kicker" id="kicker"></p>
+    <h1 class="ch-h1" id="ch-h1"></h1>
+    <p class="tr-note" id="tr-note" hidden data-i18n="notTranslated"></p>
+    <div class="prose" id="prose"></div>
+    <footer class="ch-end" id="ch-end"></footer>
+  </article>
+</div>
+
+<!-- ========== НИЖНИЕ ПАНЕЛИ ========== -->
+<div class="scrim" id="scrim" hidden></div>
+
+<!-- Оформление -->
+<section class="sheet" id="settings" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-h">
+  <div class="grip"></div>
+  <h2 id="settings-h" data-i18n="appearance"></h2>
+
+  <div class="field">
+    <p class="field-label" data-i18n="theme"></p>
+    <div class="themes">
+      <button class="swatch" type="button" data-theme-v="dark"><span class="chip">Аа</span><span data-i18n="dark"></span></button>
+      <button class="swatch" type="button" data-theme-v="light"><span class="chip">Аа</span><span data-i18n="light"></span></button>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="font"></p>
+    <div class="fonts" id="font-list"></div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="size"></p>
+    <div class="stepper">
+      <button type="button" id="size-down" data-i18n-aria="smaller"><span style="font-size:15px">А</span></button>
+      <output id="size-val"></output>
+      <button type="button" id="size-up" data-i18n-aria="bigger"><span style="font-size:23px">А</span></button>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="line"></p>
+    <div class="seg">
+      <button type="button" data-line="tight" data-i18n="tight"></button>
+      <button type="button" data-line="normal" data-i18n="normal"></button>
+      <button type="button" data-line="loose" data-i18n="loose"></button>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="align"></p>
+    <div class="seg">
+      <button type="button" data-justify="0" data-i18n="left"></button>
+      <button type="button" data-justify="1" data-i18n="justify"></button>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="language"></p>
+    <div class="seg">
+      <button type="button" data-lang="ru">Русский</button>
+      <button type="button" data-lang="en">English</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label" data-i18n="subscription"></p>
+    <p class="sub-status" id="sub-status"></p>
+  </div>
+
+  <button class="btn" type="button" data-close data-i18n="done"></button>
+  <button class="danger" type="button" id="sub-cancel" data-i18n="subCancelTest"></button>
+  <button class="danger" type="button" id="reset" data-i18n="reset"></button>
+</section>
+
+<!-- Платная глава (то же, что карточка в конце главы) -->
+<section class="sheet" id="lock" hidden tabindex="-1" role="dialog" aria-modal="true">
+  <div class="grip"></div>
+  <div id="lock-body"></div>
+</section>
+
+<!-- Тестовая оплата. На шаге 6 вместо неё откроется окно оплаты Telegram -->
+<section class="sheet" id="pay" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pay-h">
+  <div class="grip"></div>
+  <h2 id="pay-h" data-i18n="payTitle"></h2>
+  <div class="receipt">
+    <div><b data-i18n="payItem"></b><span data-i18n="payPeriod"></span></div>
+    <b class="receipt-price" id="pay-price"></b>
+  </div>
+  <p class="sheet-note" data-i18n="payNote"></p>
+  <button class="btn" type="button" id="pay-btn"></button>
+  <button class="btn btn-ghost" type="button" data-close data-i18n="cancel"></button>
+</section>
+
+<!-- Код доступа (для подписчиков Boosty) -->
+<section class="sheet" id="code" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="code-h">
+  <div class="grip"></div>
+  <h2 id="code-h" data-i18n="codeTitle"></h2>
+  <p class="sheet-note" data-i18n="codeHint"></p>
+  <input class="input" id="code-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" data-i18n-ph="codePh">
+  <p class="field-error" id="code-error" role="alert"></p>
+  <button class="btn" type="button" id="code-btn" data-i18n="codeBtn"></button>
+  <button class="btn btn-ghost" type="button" data-close data-i18n="cancel"></button>
+  <p class="lock-note" data-i18n="codeTestNote"></p>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+
+<!-- =========================================================
+     ТЕКСТЫ ГЛАВ
+     Русский текст:     <script type="text/plain" id="text-ID">
+     Английский текст:  <script type="text/plain" id="text-ID-en">
+     Абзацы — просто с новой строки. Строка «***» — разделитель сцены.
+     Если перевода нет, читатель увидит русский оригинал с пометкой.
+     ========================================================= -->
+<script type="text/plain" id="text-prolog">
+Вот знаете, как бывает? Сначала возвращается слух, и ты слышишь чудесные звуки леса и птичек. Потом с трудом открываешь глаза, и перед тобой — прекрасное синее небо и облака.
+И только потом включается мозг, и ты понимаешь, как тебе хреново. Ты не врубаешься, где ты и что, сука, с тобой происходит. Так случилось и со мной в данный момент. Я не знаю, где я, сколько сейчас времени, да и вообще — кто я.
+Хотя нет, тут всё проще: я парень (кто бы мог подумать), мне 24 года... вроде.
+— Сука, как голова-то болит, — прохрипел я.
+Так, о чём это я? Мне 24 года, не женат. Да и кому нужен парень-гровер, наркоторговец, вор и просто «хороший человек»? Отвечая на собственный вопрос: много кому. Правда, ни одного нормального человека среди них нет. Не считать же за таких бандитов, полицейских и наркоманов.
+Родителей, если так можно выразиться, я видеть сам не хочу, да и они меня тоже. Всё по классике: отец бухает, мать гуляет — порочный круг замкнулся. Девушки были, но с моими заскоками либо просто убегали, либо сначала пытались что-то изменить и лишь потом убегали. Вот интересные существа — девушки: они хотят властного и надежного, но как только ты эту властность показываешь, оказывается, они имели в виду совсем не то.
+Ну да, я опять отвлекся. Учился я хреново — как в школе, так и в институте, откуда вылетел. Не мог я слушать нравоучения людей, которые сами не верят в то, что говорят. Лицемеры и мудаки, одним словом. Зато в 14 лет я открыл для себя DarkNet. Вот где люди писали и говорили всё, что думали. В чатах и на форумах я нашел друзей. Да-да, вопреки расхожему мнению, в даркнете можно найти не только порно, наркотики и оружие, но и друзей — людей, которые мыслят точно так же, как и ты. Хотя и наркоты с оружием там дофига.
+В 15 лет я вырастил у себя дома первый куст. Потом второй, третий... Оказывается, это достаточно просто: главное, чтобы у тебя было 200 баксов на лампу, гроубокс, семена и хорошие удобрения. А дальше интернет подскажет.
+И вот — первые продажи. Самое экстремальное занятие, после которого поджилки трясутся и хочется всё бросить. Дальше — создание маленького интернет-магазина в «дарке» и первый телеграм-бот для своих. Закладки я, кстати, делал сам. Так как у меня было небольшое производство (где-то семь кустов в съемной квартире), я делал акцент на качество. И всё было хорошо: деньги, шлюхи и кайф.
+Но, как всегда и бывает, я допустил маленькую ошибку. Расслабился, стал ленивым и начал доверять такую важную вещь, как раскладка товара по городу, другим людям, которых находил на форуме. То есть я делал один-три «мастер-клада», а дальше уже работяги их забирали и всё фасовали. Но есть главное правило: чем больше людей на тебя работают, тем выше шанс пиздеца. А в моей работе это правило умножается на тысячу процентов.
+И вот однажды за мной пришли. Это не было как в фильме, с погонями и стрельбой. Не-а. Всё банально и просто: меня взяли у продуктового магазина и закинули в машину. Но у жизни есть интересное свойство — она непредсказуема. В мой кортеж врезался какой-то идиот на машине.
+И вот я здесь. Лежу на травке и не понимаю, где я, блядь, нахожусь.
+Так, ладно. Надо хотя бы встать и осмотреться. Не долго думая, начал осуществлять данный план.
+«А ничё так, красиво», — подумал я, когда оглядел поляну, на которой находился. Живописненько. Зеленый лес, голубое небо и приятный свежий воздух. Хмм, жаль, для шашлычка ни черта нет.
+А что вообще у меня с собой есть? Порывшись в карманах, я обнаружил... а ни хрена я не обнаружил, кроме бошек и набора отмычек, которые всегда ношу с собой. Да-а, негусто. Ни часов, ни телефона. И еще вопрос: где мой рюкзак? А то, что он должен быть — факт, так как сваливал я именно с ним.
+Оглядываюсь еще раз. Точно! Шагах в семи от меня валяется мой рюкзак. Подхожу к нему и начинаю осматривать: бутылка воды, семена охрененного сорта индики, шоколадка, зажигалка, раскладной нож и трубка.
+«Ну, жить уже можно. Правда, недолго, зато с кайфом», — подумал я, забивая трубку шишкой.
+Закуривая и расслабляясь, я начал думать, куда мне, собственно, идти. Для начала решил осмотреть всю полянку. По примятой траве и следам костра понял, что тут недавно было большое количество народу. Из меня, конечно, следопыт как из говна пуля, но тут даже ребенок догадается. Интересно, кто это был и нахрен я им сдался?
+Хотя пофиг. Делаю еще одну затяжку и, весело насвистывая песенку, иду в лес. Делать тут всё равно нечего.
+</script>
+
+<script type="text/plain" id="text-ch1">
+Сука по ощущения прошло уже часа 3-4 солнце начало садиться , его лучи пробивались сквозь густую листву, создавая игру теней на земле. А я стоял, опершись на ствол старого дуба, и прислушивался к звукам вечернего леса техонька матерился пытаясь отдышаться .Столько ходить в своей жизнь по пересеченной местности я не привык еще и выкуренные шишки доют о себе знать в виде бешеного желания по пить и сладкого,и естественно расщитывая что далеко от дороги меня отнести не могли я выпил половину бутылки с водой и сьел шоколад как оказлось очень зря.Пытался прислушаться к ветру и попытяться услышать машины но ветра почти не было, и единственными звуками были трели птиц и шорохи, доносящиеся из кустов.Идти проверять кусты я не стал ну его нахрен.Догадался залезть на дерево но не чего нормального не увидел, да и залезть особо не вышло.
+Потер ладонями лицо, стараясь вытереть усталость и беспокойство.
+Я достал Свой нож, который нашёл в кармане своего рюкзака, и начал осматривать окрестности. С опытом в просмотрах дискавери и прохождения обж знал, что поиск еды и воды — первоочередная задача так как когда и где я найду магазин или просто людей не понятно . Тихо двигаясь по лесу и окуратно смотря под ноги начал искать что нибудь сесное .
+На удивление Спустя некоторое время наткнулся на небольшую поляну, где росло множество диких ягод. Сердце забилось быстрее — это был хороший знак. Я осторожно собрал несколько плодов, решил что тут и заначую за одно и проверю ягоды.Крайне хреновым способом но другово я больше не знаю.И так берете ягодку и кладете в рот а далее два варианта,либо через час вы блюете и дрыщите дальше чем видите и это значит что ягодка плохая либо нет и ягодка хорошая. Таким оброзом я проверил 3 куста с разными ягодами,. . Вкус был сладким и кислым, дающим необходимые мне силы и я попытался запомнить внешний вид ягод. Надо было бы еще попытаться найти воду но я даже не заметил как наступила ночь . Ночью температура в лесу значительно падала, и мне нужно было обеспечить себе укрытие.
+Сумерки в лесу — это не как в городе. В городе темнеет постепенно: фонари, окна, фары. А тут будто кто-то медленно выкручивает яркость, и ты даже не замечаешь, как деревья из зелёных становятся серыми, а потом просто чёрными.
+
+Надо было собрать хворост и лапник для лежанки, причём быстро. Я сунул нож в карман, достал зажигалку и пошёл кругами от дуба, стараясь не терять его из виду.
+
+Первые ветки нашлись легко — сухие, хрусткие, прямо под ногами. Одна оказалась мокрой и склизкой, но я и её взял: сгорит, куда денется. Ну подымит немного, подумаешь.
+
+Потом я подобрал отличную ровную светлую палку и уже сунул её под мышку, когда до меня дошло, что это не палка. Это кость. Длинная, желтоватая, чья — хрен разберёшь. Я подержал её секунду, подумал и оставил себе. Мне нужнее, а хозяину, судя по всему, она уже без надобности.
+
+Ещё через пару шагов в траве нашёлся использованный гондон. Даже здесь, в глухом лесу, где нет ни дорог, ни людей, кто-то жил полной жизнью. Вот это, сука, оптимизм. Его я брать не стал.
+
+Темнело. Зажигалку приходилось держать почти не отпуская, и через минуту она раскалилась так, что жгла пальцы. Я гасил её, дул на руку, и на эти несколько секунд лес пропадал полностью. Оставались только звуки.
+
+Вот тогда я их и увидел.
+
+В очередной раз погасив зажигалку, я поднял голову — и между стволами, совсем низко, у самой земли, светились две точки. Потом ещё две, правее. Не мигали. Просто смотрели.
+
+Я щёлкнул зажигалкой и ткнул огоньком в ту сторону. Пусто. Кусты, корни, мох. Только справа что-то зашуршало — и стихло.
+
+«Лиса, — сказал я себе. — Или ёж. Ёжики тут, наверное, крупные».
+
+Я наклонился за очередной веткой — тёмной, сухой, ничем не отличающейся от остальных. Пальцы почти коснулись её, и она дёрнулась. Сама. А потом медленно, без всякой спешки, уползла под корни, будто это я ей помешал.
+
+Ветки не уползают. Это я знаю точно. Я двадцать четыре года прожил на этом свете, и ни одна ветка от меня ни разу не уползала.
+
+Я ничего не видел.
+
+Веток я набрал шесть. Точно шесть — я считал, счёт успокаивает. У дуба пересчитал. Пять. Пересчитал ещё раз. Пять. Шестая, толстая и сухая, которую я нёс сверху, просто исчезла. Выпала, наверное. Конечно, выпала.
+
+Возвращаться за ней в темноту я не стал.
+
+Уже у самого дуба, с охапкой лапника, я ещё раз оглянулся туда, где видел глаза. Чиркнул зажигалкой.
+
+На долю секунды прямо передо мной, на расстоянии вытянутой руки, было лицо. Белое, без всякого выражения и слишком длинное для человеческого.
+
+Потом огонёк дрогнул, и там снова были только кусты.
+
+Я простоял так, наверное, с минуту, пока зажигалка не обожгла палец. Сердце колотилось где-то в горле.
+
+«Показалось, — сказал я вслух. Голос вышел хриплым. — Конечно, показалось. Шишки, стресс, голод. Классика».
+
+А потом, когда я уже повернулся к дубу, из темноты за спиной кто-то очень тихо, почти ласково произнёс моё имя.
+
+Я не обернулся.
+
+Собрав ветки ,лапы от елки и листву, начал строить временное убежище под огромным дубом .Я пытался работать быстро, стараясь создать укрытие от дождя и ветра но не имея почти не каково опыта смог соорудить лишь простинькую лежанку .
+С наступлением крамешной темноты , разжёг небольшой костёр, используя сухие листья и щепки. Пламя вспыхнуло, освещая мое лицо. Я смотрел в огонь, размышляя о том, что делать завтра и как решать вопрос с водой. Если найду воду то и людей тоже скорее всего найду хотя конечно не факт но на что то надееться надо было а то так и на крутить себя не долго а этого уж точно не надо и бо итак заснуть не получаеться . Ночь пришла тихо, но лес не спал. Я слушал звуки вокруг, прислушиваясь к каждому шороху.Тени в свете оня оживали и танцевали вокруг меня. Я чувсвовал , что впереди ждёт множество испытаний, но сейчас я был жив, и это было самым важным. Укрывшись курткой а сверху ветками от холодного ветра, я наконец закрыл глаза,но заснуть не смог,поэтому принял решение воспользоваться лекарством которое у меня был и потянулся за трубкой ,а потом позволяя усталости и веселью унести себя в объятия сна, полные надежд и раслабления.
+Я очнулся от ощущения бесконечного падения в бездну. Окружающее пространство — это странная смесь космической пустоты и необъяснимых форм, извивающихся и мерцающих, как призрачные тени. Атмосфера давит, будто сама темнота оживает и обволакивает сознание, превращаясь в вязкую, удушающую субстанцию. Бесконтрольный страх сковал мое сердце
+Вдруг спустя секунду я оказался в центре огромного города, чьи здания из черного камня вздымаются к небу в невозможных углах. Архитектура искажена, как будто нарушает все законы физики — углы кажутся неправильными, а стены движутся, меняя форму, как будто живут своей зловещей жизнью.
+Вдалеке слышатся монотонные, низкие звуки, как если бы невидимый хор исполнял древний ритуал, не предназначенный для человеческих ушей.
+Я чувствует, что за мной наблюдают невидимые глаза — огромные, немыслимые сущности, которым человек не должен быть свидетелем. Ощущение невыносимого ужаса нарастает, пока не появляется нечто, подобное колоссальной тени. Оно движется сквозь стены, не оставляя следов, его форма постоянно меняется, будто это некая древняя сила, не имеющая границ.
+Чем ближе эта сущность подходит, тем сильнее я чувствует, что мое сознание распадается, как трещины на стекле, готовом рассыпаться в прах. В последний момент до меня доносятся древние, непроизносимые слова, внушающие безумие и страх, которые проникают глубоко в мой разум. В воздухе витает странный запах, едва уловимый, но жутко чуждый, как будто я почувствовал дыхание чего-то древнего, неведомого миру смертных. Земля под ногами больше не кажется твердой — она дрожит и пульсирует, как живое существо.
+Шепот повторяет мое имя, но так, как будто каждое произнесение искажает мою сущность, заставляя меня забывать, кем я был до этого момента. Оглядываясь, я замечает фигуры, мелькающие на границе зрения, но каждый раз, когда я пытается сфокусироваться на них, они исчезают, оставляя за собой чувство абсолютного ужаса и безысходности.
+Неожиданно город начинает рушиться. Стены с грохотом падают, но не превращаются в обломки — они растворяются, превращаясь в вязкую субстанцию, которая течет по улицам, подобно медленному, зловещему потоку. Из этой субстанции начинают подниматься странные, бесформенные существа, не имеющие конкретного облика. Их очертания неуловимы, словно они меняются каждую секунду, как вода, принимающая форму только на мгновение. Эти существа не издают звуков, но их молчаливое присутствие наполняет меня ужасом настолько невыносимым, что я готов потерять разум.
+Я пытается бежать, но понимаю что ноги не слушаются. я словно врос в землю, а ужасные создания приближаются. Их безликие головы начинают формироваться, открывая ужасные зияющие рты, словно готовые поглотить мою душу. И тут я замечает нечто еще более ужасное — в небе над до мной м появляется гигантское существо, чье тело состоит из бесконечного количества щупалец, каждая из которых извивается в своих собственных безумных направлениях. Его глаза — если это можно назвать глазами — блестят ледяным светом, проникая в самую глубину души.
+Чем ближе эта сущность, тем больше я осознает, что это не просто кошмарное существо, а сама суть древнего космоса, того самого порядка вещей, о котором люди не должны знать. Эта тварь — воплощение бездны, которая существовала задолго до рождения времени. Она не просто смотрит на меня , она понимает .
+Просыпаясь, я осознаю что это просто сон,но холодный пот продолжает течь с меня градом,
+И самое главное голос так и не утихает в ушах,и продолжает произносить не разборчивый набор звуков.Я быстро забиваю трубку до отказа и выкуривая полностью за один заход валюсь без сознания в спасительную темнатую.
+</script>
+
+<script type="text/plain" id="text-ch2">
+Лес дышал тяжелой, липкой жарой, и, с каждым шагом углубляясь в его мрачные недра, я ощущал себя всё более потерянным. Деревья стояли как стражи, зловещие и неподвижные, их могучие кроны закрывали небо, превращая путь в зелёное ущелье, где царила бесконечная тишина. Даже ветер словно обходил это место стороной. Я уже не знал, сколько часов пробирался сквозь заросли в поисках выхода, но лес, казалось, замыкался вокруг меня всё теснее, как ловушка.
+Сначала жажда казалась просто неприятным ощущением, как и бываеть если хорошо дунуть с утра,что бы к чертям забыть то мерзкое ощущение которое окутало меня утром , но теперь она стала невыносимой. Сухость в горле превратилась в режущее чувство, каждый вдох обжигал лёгкие, а голова кружилась всё сильнее. Я вспоминал, как совсем недавно выпил все воду которая у меня была, по своей тупости. Вокруг не было даже росы на листьях, всё казалось мёртвым и выжженным.
+Но в этот момент, когда я уже почти начал материться в полный голос , краем глаза я уловил проблеск — бледный свет, едва заметный между деревьями. Я прищурился, надеясь, что это не игра моего накуренного и измученого старанными снами сознания , и вдруг заметил, что свет на самом деле существует. Бросив взгляд в ту сторону, я обнаружил узкую тропу, усыпанную пожухшими листьями, ведущую прямо к источнику света.
+Через несколько минут блужданий по извилистой тропе передомной возник дом — старый, массивный, как будто вырезанный из одного куска дерева, покрытый тёмной коркой времени и мха. Крыша была из неравномерно уложенных камней, местами просевшая, а стены укрыты густым ковром из мха, в котором можно было разглядеть прихотливые формы — будто здесь были древние, забытые письмена. Это было пугающее, но странно притягательное зрелище. Поросший зеленью, он казался частью леса и в то же время чем-то чуждым, как будто кто-то вытащил этот дом из другого мира и оставил здесь навечно.
+На его крыльце лежали повседневные, но странно старые предметы: лейка с темной зелёной патиной, словно её не использовали уже много лет; глиняный горшок, заросший густым мхом, и топор, ржавый и почти заросший травой. Всё выглядело заброшенным, но как будто сберегалось бережно, в каком-то мрачном порядке, как если бы дом хранил память о тех, кто когда-то жил здесь. И, вопреки здравому смыслу, этот дом меня его к себе.
+На секунду я замер у двери, не решаясь войти, словно почувствовав, что проходить через этот порог — это как пересекать границу между двумя мирами. Но пить хотелось безумно и соблазн был слишком велик. Я толкнул дверь, которая, словно приветствуя меня, тихо скрипнула и поддалась, открывая мне вход в темноту.
+Внутри было прохладно, почти холодно, несмотря на жару, царившую в лесу. Половицы тихо поскрипывали под моими шагами, и в полумраке я различил старинные предметы, окружённые странной атмосферой времени, замершего здесь навсегда. На стенах висели необычные картины — тёмные лесные пейзажи, на которых деревья переплетались в жуткие узоры, напоминая человеческие силуэты. Мои глаза невольно задержались на одной из картин, где на фоне густого леса, утопающего в тумане, проглядывал едва заметный силуэт, похожий на девичий.
+Но мое внимание вскоре привлекло другое. В дальнем углу комнаты, едва освещённая слабым светом из окна, стояла девушка.
+
+Неподвижная, как статуя. Её фигура так вписывалась в сумрак, будто она сама была частью этой комнаты.
+
+Кожа — почти прозрачная. Волосы — светлые, почти белые, с холодным зеленоватым отливом, как лунный свет на болоте. Одна сторона головы коротко выбрита, и по ней тянутся чёрные полосы — то ли татуировка, то ли следы когтей. Остальное собрано в длинный тяжёлый хвост, перекинутый через плечо.
+
+На ней было красное вязаное платье — короткое, в обтяжку, будто свитер, который кто-то очень удачно забыл довязать до нормальной длины. Ниже — чёрная сетка чулок, на руках чёрные перчатки, а на ногах серые армейские ботинки на толстой подошве. Наряд для лесной ведьмы, мягко говоря, неожиданный. Как будто она собралась на рок-концерт, свернула не туда лет двести назад и так здесь и осталась.
+
+И фигура — не тростинка. Широкие бёдра, высокая грудь, которую не прятало даже вязаное платье, и сильная, как у пловчихи, спина.
+
+Она не шевелилась. Только глаза — большие, голубые, пронзительные — казалось, видели меня насквозь. видели меня насквозь.
+-хрена себе
+пробормотал я
+я застыл на месте, не зная, что сказать. Девушка выглядела пугающе и в то же время невероятно красиво — словно воплощение самого леса, дикой природы, которая всегда живёт своей жизнью, но в которой таится нечто большее. В её взгляде было что-то древнее, непонятное, как будто она видела людей редко и потому с интересом изучала каждую их черту. Через несколько мгновений, которые показались мне вечностью, девушка медленно приподняла руку, указывая куда-то за моё плечо.
+И произнесла что то на отдалённо похожим на англиском языке , голос её был так мягок, что едва разносился по комнате, но казалось, что эти слова наполнили воздух смыслом и странным спокойствием.
+Я почувствовал лёгкий холодок от её слов и не сразу смог ответить, застигнутый врасплох не столько её словами, сколько самим её видом. Её лицо было бледным, но каким-то завораживающе красивым, словно сошедшим с тех картин, что висели на стенах этого дома. Её глаза не отрывались от моего лица, и я вдруг осознал, что не могу отвести взгляд. В этот миг я уже не знал, что пугает меня больше — жажда, ставшая невыносимой, или это странное ощющение от голоса.
+</script>
+
+<script type="text/plain" id="text-ch3">
+Я сглотнул. Горло отозвалось так, будто я проглотил наждачку. Вместе с упаковкой.
+
+Девушка продолжала смотреть. Глаза у неё были голубые и глубокие. Не в смысле «ах, какие глубокие глаза», а в смысле — туда можно уронить ключи и больше никогда их не достать. Время, кажется, остановилось. Или это меня наконец догнала утренняя шишка.
+
+Она шагнула вперёд. Бесшумно. Половицы, которые подо мной орали, как кот, которому наступили на хвост, под её тяжёлыми армейскими ботинками молчали, будто их подкупили. Как она это делала в такой обуви — загадка похлеще всего остального.
+
+От неё потянуло холодом — приятным, как из погреба в июле. Я бы сейчас и в погреб залез, честно.
+
+Она заговорила. Голос мягкий, едва слышный — а слова… Отдалённо похоже на английский, но между знакомыми звуками пролезало что-то такое, от чего ныли зубы и хотелось сплюнуть.
+
+— …ilh'ya… thou… n'gha-ghaa… comely… — пропела она, склонив голову набок. Белый хвост волос соскользнул с плеча и качнулся, как маятник.
+
+Из всего этого я опознал разве что «зоу». Да и то не уверен.
+
+— Я… это… воды бы, — выдавил я. Универсальный язык всех жаждущих.
+
+Она моргнула. Потом ещё раз — медленно, как сова, которая решает, ты еда или мебель. Подошла ближе и посмотрела мне прямо в глаза.
+
+И в голове что-то ёкнуло.
+
+За глазами разлился холод. Ощущение было такое, будто кто-то открыл мой череп, как холодильник, и начал не спеша перебирать полки: это выкинуть, это понюхать, а это — о, интересно. В ушах щёлкнуло, как в самолёте при посадке.
+
+А потом её губы снова зашевелились — звуки были всё те же, чужие, — но в голове у меня они вдруг складывались в слова. Русские. С небольшим опозданием, как в гнусавом переводе с пиратской кассеты.
+
+«Ну всё, — подумал я. — Приплыли. Теперь у меня в голове живёт переводчик».
+
+— Так лучше? — спросила она. — Прости. Пришлось немного покопаться. У тебя там… тесно.
+
+Обидно, но спорить я не стал.
+
+— Давно ко мне не заходили люди. А уж мальчики — тем более. Хорошенькие, — добавила она задумчиво, разглядывая меня так, как я разглядываю шаурму на вокзале: вроде хочется, но страшно. — Это не то место, которое ты ищешь.
+
+— А что это за место? — спросил я и тут же пожалел. В таких местах ответы обычно хуже вопросов.
+
+Она улыбнулась одними уголками губ и снова указала мне за плечо. Чёрная перчатка в полумраке будто отрезала ей кисть.
+
+Я обернулся.
+
+Двери не было.
+
+Там, где пять минут назад была нормальная скрипучая дверь, через которую я, на минуточку, вошёл, теперь висело зеркало. Огромное, почти до потолка, в чёрной резной раме, обросшей мхом. И отражались в нём не комната, не я и не она. А тропа. Моя тропа. Только утонувшая в густом сером тумане, и деревья вдоль неё были неправильные — слишком высокие, слишком тонкие, и клонились к стеклу, будто подглядывали.
+
+«Всё, — подумал я. — Больше никогда не курю натощак».
+Подумал, правда, без особой уверенности.
+
+— Тебе нужно уйти, — прошептала она. — Пока ещё не поздно.
+
+— Куда?! — Я ткнул пальцем в зеркало. — Туда?! У вас тут вообще-то выход был! Деревянный! С ручкой!
+
+Она не ответила. Она смотрела в зеркало — так смотрят на то, что очень давно знают и очень давно ненавидят.
+
+И до меня дошло: это не дом. Ну то есть дом, но примерно в той же степени, в какой акула — рыбка. Что-то древнее, странное и сильно больше, чем выглядит снаружи. А самое мерзкое — где-то внутри уже пустило корни ощущение, что уходить я никуда не хочу. Как в гостях у бабушки: вроде пора, а вроде пирожки.
+
+Я сделал шаг назад. Потом ещё один. Упёрся спиной в стену — бревно холодное, мох влажный, мерзость.
+
+И остановился. Потому что в её глазах, кроме всей этой древней жути, было ещё кое-что. Тоска. Такая, от которой воют собаки в пустых деревнях.
+
+— Ты кто? — спросил я. Голос прозвучал неожиданно твёрдо. Сам удивился.
+
+Она помолчала. Сделала ещё шаг — между нами осталось всего ничего. Я видел, как её дыхание шевелит светлые пряди, выбившиеся из хвоста. От неё веяло холодом, но этот холод больше не пугал. Он затягивал.
+
+— Я — часть этого места, — тихо сказала она. — И ты теперь тоже.
+
+— Не-не-не, — возразил я. — Я сам по себе. Я даже в профсоюзе не состою.
+
+Она не оценила. Опустила глаза.
+
+— Так не должно было случиться. Но раз уж ты здесь… я тебя не отпущу.
+
+— Почему?
+
+Она подняла голову, и в её глазах стояли слёзы — такие тихие и неподвижные, что я не сразу поверил, что они настоящие. Холодные пальцы коснулись моего запястья. Я не отдёрнул руку. Хотя очень, очень стоило.
+
+— Потому что я ждала. Долго. Одна. Так долго, что уже не помню, когда последний раз кто-то переступал этот порог. Ты — первый. И я тебя не отпущу.
+
+Звучало как признание в любви. Или как приговор. В этом доме, видимо, это одно и то же.
+
+Моя рука сама потянулась к её лицу. Кожа была прохладная и гладкая, как речной камень. Пальцы скользнули выше, по выбритому виску, по чёрным полосам — они оказались чуть шершавыми, как старые шрамы.
+
+«Да что, чёрт возьми, со мной происходит?» — успела подумать моя последняя трезвая извилина.
+
+Девушка вздрогнула, но не отстранилась. Тьма вокруг неё больше не пугала — она впитывалась в меня, как в губку. Очень тупую, очень влюблённую губку.
+
+— Ты не одна, — сказал я. — Теперь я здесь.
+
+Странно, но на губах при этом были совсем другие слова. Хорошо, что вслух я их не произнёс.
+
+Она закрыла глаза. И я её поцеловал. Жадно.
+
+И тут в голове взорвалась сверхновая. Всё смешалось — боль, жажда и дикое, звериное желание, с которым я накинулся на неё, раздирая красное вязаное платье. А она… она и не сопротивлялась.
+</script>
+
+<script type="text/plain" id="text-prolog-en">
+You know how it goes? First your hearing comes back, and you hear the lovely sounds of the forest and the little birds. Then you pry your eyes open, and there it is — a beautiful blue sky with clouds.
+And only then does your brain switch on, and you realize how shitty you feel. You have no clue where you are or what the fuck is happening to you. That’s exactly what happened to me just now. I don’t know where I am, what time it is, or, for that matter, who I am.
+Actually, no, that part’s simple: I’m a guy (who’d have thought), I’m twenty-four... I think.
+“Fuck, my head,” I croaked.
+Right, where was I? I’m twenty-four, not married. And who’d want a guy who’s a grower, a drug dealer, a thief and an all-round “nice person”? To answer my own question: plenty of people. Just not a single normal one among them. You can’t exactly count gangsters, cops and junkies as normal.
+My so-called parents — I don’t want to see them, and they don’t want to see me. Classic story: dad drinks, mom sleeps around, the vicious circle is complete. There were girls, but with my quirks they either just ran, or first tried to change something and only then ran. Funny creatures, girls: they want someone strong and dependable, but the moment you show that strength, it turns out that’s not what they meant at all.
+Yeah, I’m getting sidetracked again. I was a lousy student — at school and at the university I got kicked out of. I couldn’t stand being lectured by people who didn’t believe a word of what they were saying. Hypocrites and assholes, in a word. But at fourteen I discovered the DarkNet. Now that was a place where people wrote and said exactly what they thought. In the chats and forums I found friends. Yes, yes, contrary to popular belief, on the darknet you can find not just porn, drugs and guns, but friends too — people who think exactly the way you do. Though there’s a fuckton of drugs and guns there as well.
+At fifteen I grew my first bush at home. Then a second, a third... Turns out it’s pretty easy: all you need is two hundred bucks for a lamp, a grow box, seeds and good fertilizer. The internet will tell you the rest.
+And then — the first sales. The most extreme thing you can do: afterwards your knees shake and you want to quit it all. Next came a little online shop on the dark web and my first Telegram bot for my own people. I made the dead drops myself, by the way. My production was small (about seven bushes in a rented apartment), so I focused on quality. And life was good: money, hookers and highs.
+But, as always happens, I made one little mistake. I relaxed, got lazy and started trusting something as important as spreading the stash around the city to other people I’d found on the forum. I’d make one to three “master drops,” and then the grunts picked them up and packed everything. But there’s one golden rule: the more people work for you, the higher the chance of a total fuckup. And in my line of work that rule gets multiplied by a thousand percent.
+And then one day they came for me. It wasn’t like in the movies, with chases and shootouts. Nope. All plain and simple: they grabbed me outside a grocery store and threw me into a car. But life has one interesting quality — it’s unpredictable. Some idiot rammed his car into my escort.
+And here I am. Lying on the grass with no fucking idea where I am.
+Okay, fine. I should at least get up and look around. Without much thought, I set about executing this plan.
+“Huh, not bad, pretty,” I thought, looking over the clearing I was in. Picturesque. Green forest, blue sky and nice fresh air. Hmm, shame there’s nothing for a barbecue.
+And what do I even have on me? Digging through my pockets, I found... jack shit, apart from a few buds and the set of lockpicks I always carry. Yeah, not much. No watch, no phone. And another question: where’s my backpack? It has to be somewhere, that’s a fact — I was making a run for it with that backpack.
+I look around again. There! About seven paces away lies my backpack. I walk over and start going through it: a bottle of water, seeds of a kick-ass indica strain, a chocolate bar, a lighter, a folding knife and a pipe.
+“Well, I can live with this. Not for long, but in style,” I thought, packing the pipe with a bud.
+Lighting up and relaxing, I started thinking about where exactly I should go. First I decided to check out the whole clearing. From the trampled grass and the remains of a campfire I figured that a big crowd had been here recently. Sure, as a tracker I’m a piece of shit, but even a kid could work this one out. Wonder who they were and why the hell they’d want me?
+Whatever. I take another hit and, cheerfully whistling a tune, head into the forest. Nothing to do here anyway.
+</script>
+
+
+<script>
+(function () {
+  'use strict';
+
+  /* =======================================================
+     1. КНИГА, ГЛАВЫ, ЦЕНА
+     Чтобы добавить главу: строка в CHAPTERS + блок с текстом выше.
+     free: true — бесплатная, false — по подписке. adult: true — пометка 18+.
+     ======================================================= */
+  const BOOK = {
+    title:        { ru: 'Книга первая', en: 'Book One' },
+    epigraph:     { ru: 'Ветки не уползают. Это я знаю точно.', en: 'Branches don’t crawl away. That much I know for sure.' },
+    epigraphFrom: { ru: 'Глава 1. Лес', en: 'Chapter 1. The Forest' },
+  };
+
+  const CHAPTERS = [
+    { id: 'prolog', num: 0, title: { ru: 'Пролог',            en: 'Prologue' },              free: true  },
+    { id: 'ch1',    num: 1, title: { ru: 'Лес',               en: 'The Forest' },            free: true  },
+    { id: 'ch2',    num: 2, title: { ru: 'Встреча',           en: 'The Meeting' },           free: true  },
+    { id: 'ch3',    num: 3, title: { ru: 'Девушка',           en: 'The Girl' },              free: true  },
+    { id: 'ch4',    num: 4, title: { ru: 'Очень долгая ночь', en: 'A Very Long Night' },     free: false, adult: true },
+    { id: 'ch5',    num: 5, title: { ru: 'Ужас нового мира',  en: 'Horror of a New World' }, free: false },
+    { id: 'ch6',    num: 6, title: { ru: 'Ужас старого мира', en: 'Horror of the Old World' }, free: false },
+  ];
+
+  const PRICE = { stars: 250, usd: 5, days: 30 };   // цена подписки и её срок
+  const TEST_CODE = 'TEST';                         // в прототипе работает только этот код
+
+  const FONTS = [
+    { id: 'literata', name: 'Literata',     css: '"Literata", Georgia, "Times New Roman", serif' },
+    { id: 'ptserif',  name: 'PT Serif',     css: '"PT Serif", Georgia, serif' },
+    { id: 'oldstd',   name: 'Old Standard', css: '"Old Standard TT", "Times New Roman", serif' },
+    { id: 'ptsans',   name: 'PT Sans',      css: '"PT Sans", -apple-system, Roboto, Arial, sans-serif' },
+  ];
+  const LINE = { tight: 1.45, normal: 1.65, loose: 1.85 };
+  const SIZE_MIN = 14, SIZE_MAX = 26;
+  const DEFAULTS = { theme: 'dark', font: 'literata', size: 18, line: 'normal', justify: false, lang: null };
+  const THEME_COLOR = { dark: '#0f1412', light: '#e3e1d5' };
+  const WORDS_PER_MIN = 200;
+
+
+  /* =======================================================
+     2. ТЕКСТЫ ИНТЕРФЕЙСА (русский и английский)
+     ======================================================= */
+  const STR = {
+    ru: {
+      gateTitle: 'Только для взрослых',
+      gateText: 'В книге мат, наркотики, насилие и откровенные сцены. Читать можно с\u00a018\u00a0лет.',
+      gateYes: 'Мне есть 18', gateNo: 'Мне нет 18', gateBye: 'Тогда эта книга вас подождёт.',
+      appearance: 'Оформление', theme: 'Тема', dark: 'Тёмная', light: 'Светлая', font: 'Шрифт',
+      size: 'Размер текста', smaller: 'Мельче', bigger: 'Крупнее',
+      line: 'Межстрочный интервал', tight: 'Плотный', normal: 'Обычный', loose: 'Свободный',
+      align: 'Выравнивание', left: 'По левому краю', justify: 'По ширине', language: 'Язык',
+      done: 'Готово', reset: 'Сбросить прогресс чтения', resetConfirm: 'Нажмите ещё раз, чтобы сбросить', resetDone: 'Прогресс сброшен',
+      subscription: 'Подписка', subActive: 'Активна до {date}', subNone: 'Не оформлена',
+      subCancelTest: 'Отменить тестовую подписку', subCanceled: 'Тестовая подписка отменена',
+      contents: 'Оглавление', start: 'Начать читать', continue: 'Продолжить', next: 'Дальше',
+      readPct: 'прочитано {n}%', min: '{n} мин', read: 'Прочитано', locked: 'По подписке', forSupporters: 'по подписке',
+      back: 'К оглавлению', chapter: 'Глава {n}', nextChapter: 'Следующая глава', prev: 'Назад: {name}',
+      lastNote: 'Это последняя вышедшая глава. Новые появятся в оглавлении.',
+      notTranslated: '',
+      pwTitle: 'Дальше — для подписчиков',
+      pwPerks: 'Все вышедшие главы и ранний доступ к новым.',
+      pwPrice: '⭐ {stars} в месяц',
+      pwUnlock: 'Открыть за ⭐ {stars}',
+      pwCode: 'У меня есть код',
+      pwCancel: 'Отменить можно в любой момент в настройках Telegram.',
+      payTitle: 'Тестовая оплата', payItem: 'Подписка: все главы', payPeriod: '30 дней',
+      payNote: 'В Telegram здесь откроется его собственное окно оплаты. Сейчас ничего не списывается.',
+      payBtn: 'Оплатить ⭐ {stars}', paying: 'Оплата…', cancel: 'Отмена',
+      paidToast: 'Готово! Все главы открыты.',
+      codeTitle: 'Код доступа',
+      codeHint: 'Код или ссылку подписчики получают в закрытом посте.',
+      codePh: 'Например, TEST', codeBtn: 'Активировать',
+      codeEmpty: 'Введите код.', codeBad: 'Код не подошёл. Проверьте буквы и цифры.',
+      codeOk: 'Код принят. Доступ до {date}.', codeTestNote: 'В прототипе работает код TEST.',
+      emptyPaid: 'Текст этой главы появится позже: в прототипе платные главы пустые.',
+    },
+    en: {
+      gateTitle: 'Adults only',
+      gateText: 'This book contains strong language, drugs, violence and explicit scenes. For readers 18 and over.',
+      gateYes: 'I’m 18 or older', gateNo: 'I’m under 18', gateBye: 'Then this book will wait for you.',
+      appearance: 'Appearance', theme: 'Theme', dark: 'Dark', light: 'Light', font: 'Font',
+      size: 'Text size', smaller: 'Smaller', bigger: 'Larger',
+      line: 'Line spacing', tight: 'Tight', normal: 'Normal', loose: 'Loose',
+      align: 'Alignment', left: 'Left', justify: 'Justified', language: 'Language',
+      done: 'Done', reset: 'Reset reading progress', resetConfirm: 'Tap again to reset', resetDone: 'Progress reset',
+      subscription: 'Subscription', subActive: 'Active until {date}', subNone: 'Not active',
+      subCancelTest: 'Cancel test subscription', subCanceled: 'Test subscription canceled',
+      contents: 'Contents', start: 'Start reading', continue: 'Continue', next: 'Up next',
+      readPct: '{n}% read', min: '{n} min', read: 'Read', locked: 'Supporters', forSupporters: 'for supporters',
+      back: 'Back to contents', chapter: 'Chapter {n}', nextChapter: 'Next chapter', prev: 'Back: {name}',
+      lastNote: 'That’s the latest chapter. New ones will appear in the contents.',
+      notTranslated: 'This chapter hasn’t been translated yet. Showing the Russian original.',
+      pwTitle: 'The story continues for supporters',
+      pwPerks: 'All released chapters, plus early access to new ones.',
+      pwPrice: '⭐ {stars} a month (about ${usd})',
+      pwUnlock: 'Unlock for ⭐ {stars}',
+      pwCode: 'I have an access code',
+      pwCancel: 'Cancel anytime in Telegram settings.',
+      payTitle: 'Test payment', payItem: 'Subscription: all chapters', payPeriod: '30 days',
+      payNote: 'In Telegram, its own payment window opens here. Nothing is charged now.',
+      payBtn: 'Pay ⭐ {stars}', paying: 'Processing…', cancel: 'Cancel',
+      paidToast: 'Done! All chapters are unlocked.',
+      codeTitle: 'Access code',
+      codeHint: 'Supporters get a code or a link in a members-only post.',
+      codePh: 'For example, TEST', codeBtn: 'Activate',
+      codeEmpty: 'Enter a code.', codeBad: 'That code doesn’t work. Check the letters and numbers.',
+      codeOk: 'Code accepted. Access until {date}.', codeTestNote: 'In the prototype, the code TEST works.',
+      emptyPaid: 'This chapter’s text will be added later: paid chapters are empty in the prototype.',
+    },
+  };
+
+
+  /* =======================================================
+     3. ХРАНИЛИЩЕ
+     Сейчас — память браузера. На шагах 3–4 заменим только этот блок
+     (сервер / облако Telegram). Остальной код не трогаем.
+     ======================================================= */
+  const Store = (function () {
+    const PREFIX = 'reader1:';
+    const memory = {};
+    let ls = null;
+    try {
+      localStorage.setItem(PREFIX + 'test', '1');
+      localStorage.removeItem(PREFIX + 'test');
+      ls = localStorage;
+    } catch (e) { /* хранилище недоступно — работаем в памяти до перезагрузки */ }
+    return {
+      get(key, fallback) {
+        try {
+          const raw = ls ? ls.getItem(PREFIX + key) : memory[key];
+          return raw == null ? fallback : JSON.parse(raw);
+        } catch (e) { return fallback; }
+      },
+      set(key, value) {
+        const raw = JSON.stringify(value);
+        try { if (ls) ls.setItem(PREFIX + key, raw); else memory[key] = raw; }
+        catch (e) { memory[key] = raw; }
+      },
+      remove(key) {
+        try { if (ls) ls.removeItem(PREFIX + key); else delete memory[key]; } catch (e) {}
+      },
+    };
+  })();
+
+
+  /* =======================================================
+     4. ПОДГОТОВКА
+     ======================================================= */
+  const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
+
+  const els = {
+    gate: $('gate'), toc: $('toc'), reader: $('reader'),
+    bar: $('bar'), barTitle: $('bar-title'), progress: $('progress'),
+    kicker: $('kicker'), h1: $('ch-h1'), trNote: $('tr-note'), prose: $('prose'), end: $('ch-end'),
+    scrim: $('scrim'), settings: $('settings'), lock: $('lock'), pay: $('pay'), code: $('code'),
+    cta: $('cta'), list: $('chapters'), toast: $('toast'),
+    metaTheme: document.querySelector('meta[name="theme-color"]'),
+  };
+
+  // Браузер не должен сам двигать прокрутку при «назад» — место чтения ставим мы
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  let tg = null;                              // Telegram, если страница открыта внутри него
+  let S = Object.assign({}, DEFAULTS, Store.get('settings', {}));
+  let lang = S.lang || detectLang();
+  let progress = Store.get('progress', {});   // { ch1: { p, off, pct, done, lang } }
+  let access = Store.get('access', null);     // { until, via } — подписка или код
+  let current = null;                         // открытая сейчас глава
+  let pending = null;                         // глава, которую хотели открыть до оплаты
+  let openedFromToc = false;
+  let lastY = 0, ticking = false, saveTimer = 0, userScrolled = false, toastTimer = 0;
+
+  function detectLang() {
+    const w = window.Telegram && window.Telegram.WebApp;
+    const tgLang = w && w.initDataUnsafe && w.initDataUnsafe.user && w.initDataUnsafe.user.language_code;
+    const code = String(tgLang || navigator.language || 'en').toLowerCase();
+    return code.indexOf('ru') === 0 ? 'ru' : 'en';
+  }
+
+  function t(key, vars) {
+    let s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.ru[key] != null ? STR.ru[key] : key);
+    if (vars) Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(vars[k]); });
+    return s;
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  const title = (ch) => ch.title[lang] || ch.title.ru;
+  const fullName = (ch) => (ch.num ? t('chapter', { n: ch.num }) + '. ' + title(ch) : title(ch));
+  const hasAccess = () => !!(access && access.until > Date.now());
+  const isOpen = (ch) => ch.free || hasAccess();
+
+  function fmtDate(ms) {
+    return new Date(ms).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long' });
+  }
+
+  // Текст главы на нужном языке; если перевода нет — русский оригинал
+  function chapterText(ch) {
+    ch._t = ch._t || {};
+    if (ch._t[lang]) return ch._t[lang];
+    const read = (id) => {
+      const box = $(id);
+      return box ? box.textContent.split(/\r?\n/).map((s) => s.trim()).filter(Boolean) : null;
+    };
+    let res;
+    if (lang !== 'ru') {
+      const tr = read('text-' + ch.id + '-' + lang);
+      if (tr) res = { lang: lang, paras: tr, fallback: false };
+    }
+    if (!res) res = { lang: 'ru', paras: read('text-' + ch.id) || [], fallback: lang !== 'ru' };
+    ch._t[lang] = res;
+    return res;
+  }
+
+  function minutes(ch) {
+    const words = chapterText(ch).paras.join(' ').split(/\s+/).filter(Boolean).length;
+    return Math.max(1, Math.round(words / WORDS_PER_MIN));
+  }
+
+  function lockIcon() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = '<rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/>' +
+      '<path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/>';
+    return svg;
+  }
+
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove('is-on'), 2600);
+  }
+
+  // Подставляет переводы во все элементы с data-i18n
+  function applyI18n() {
+    root.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach((n) => { n.textContent = t(n.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-aria]').forEach((n) => { n.setAttribute('aria-label', t(n.dataset.i18nAria)); });
+    document.querySelectorAll('[data-i18n-ph]').forEach((n) => { n.placeholder = t(n.dataset.i18nPh); });
+    $('pay-price').textContent = '⭐ ' + PRICE.stars;
+    $('pay-btn').textContent = t('payBtn', { stars: PRICE.stars });
+  }
+
+
+  /* =======================================================
+     5. ВХОД 18+
+     ======================================================= */
+  function initGate() {
+    if (Store.get('adult', false)) return;
+    els.gate.hidden = false;
+    $('gate-yes').onclick = () => {
+      Store.set('adult', true);
+      els.gate.hidden = true;
+    };
+    $('gate-no').onclick = () => {
+      $('gate-text').textContent = t('gateBye');
+      $('gate-actions').hidden = true;
+      if (tg) setTimeout(() => { try { tg.close(); } catch (e) {} }, 1500);
+    };
+  }
+
+
+  /* =======================================================
+     6. ОГЛАВЛЕНИЕ
+     ======================================================= */
+  function chapterState(ch) {
+    if (!isOpen(ch)) return 'locked';
+    const p = progress[ch.id];
+    if (p && p.done) return 'read';
+    if (p && p.pct > 0) return 'reading';
+    return 'new';
+  }
+
+  function renderToc() {
+    $('book-title').textContent = BOOK.title[lang];
+    $('epigraph').textContent = BOOK.epigraph[lang];
+    $('epigraph-from').textContent = BOOK.epigraphFrom[lang];
+
+    // Кнопка «Начать / Продолжить / Дальше»
+    const last = CHAPTERS.find((c) => c.id === Store.get('last', null));
+    let target = null, label = t('start');
+    if (!last) {
+      target = CHAPTERS[0];
+    } else if (progress[last.id] && progress[last.id].done) {
+      target = CHAPTERS[CHAPTERS.indexOf(last) + 1] || null;
+      label = t('next');
+    } else {
+      target = last;
+      label = t('continue');
+    }
+
+    if (!target) {
+      els.cta.hidden = true;
+    } else {
+      const p = progress[target.id];
+      let sub = fullName(target);
+      if (!isOpen(target)) sub += ', ' + t('forSupporters');
+      else if (p && p.pct > 0 && !p.done) sub += ', ' + t('readPct', { n: p.pct });
+      else if (target.free) sub += ', ' + t('min', { n: minutes(target) });
+      els.cta.hidden = false;
+      els.cta.classList.toggle('is-locked', !isOpen(target));
+      els.cta.querySelector('b').textContent = label;
+      els.cta.querySelector('span').textContent = sub;
+      els.cta.onclick = () => (isOpen(target) ? goChapter(target) : openLock(target));
+    }
+
+    // Список глав
+    els.list.replaceChildren();
+    CHAPTERS.forEach((ch) => {
+      const state = chapterState(ch);
+      const p = progress[ch.id];
+      const li = el('li');
+      const b = el('button', 'ch is-' + state);
+      b.type = 'button';
+      b.append(el('span', 'ch-num', ch.num ? String(ch.num) : ''), el('span', 'ch-title', title(ch)));
+
+      const meta = el('span', 'ch-meta');
+      if (state === 'locked') {
+        if (ch.adult) meta.append(el('span', 'badge', '18+'));
+        meta.append(lockIcon(), document.createTextNode(t('locked')));
+      } else if (state === 'read') {
+        meta.textContent = t('read');
+      } else if (state === 'reading') {
+        meta.textContent = p.pct + '%';
+      } else {
+        meta.textContent = ch.free ? t('min', { n: minutes(ch) }) : '';
+        if (ch.adult) meta.prepend(el('span', 'badge', '18+'));
+      }
+      b.append(meta);
+
+      if (state === 'reading') {
+        const bar = el('span', 'ch-bar');
+        const fill = el('i');
+        fill.style.width = p.pct + '%';
+        bar.append(fill);
+        b.append(bar);
+      }
+
+      b.onclick = () => (isOpen(ch) ? goChapter(ch) : openLock(ch));
+      li.append(b);
+      els.list.append(li);
+    });
+  }
+
+
+  /* =======================================================
+     7. ПЕРЕХОДЫ МЕЖДУ ЭКРАНАМИ
+     Адрес страницы: #ch2 — открыта глава 2, пусто — оглавление.
+     ======================================================= */
+  function goChapter(ch) {
+    openedFromToc = true;
+    location.hash = ch.id;            // дальше сработает route()
+  }
+
+  function replaceHash(id) {
+    const url = id ? '#' + id : location.pathname + location.search;
+    try {
+      history.replaceState(null, '', url);
+      route();
+    } catch (e) {
+      location.replace('#' + (id || ''));
+    }
+  }
+
+  function goToc() {
+    saveNow();
+    if (openedFromToc) {
+      openedFromToc = false;
+      history.back();
+    } else {
+      replaceHash('');
+    }
+  }
+
+  function route() {
+    const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+    const ch = CHAPTERS.find((c) => c.id === id);
+    if (ch && isOpen(ch)) { openChapter(ch); return; }
+    showToc();
+    if (ch && !isOpen(ch)) openLock(ch);
+  }
+
+  function showToc() {
+    if (current) { saveNow(); current = null; }
+    openedFromToc = false;
+    els.reader.hidden = true;
+    els.toc.hidden = false;
+    document.title = BOOK.title[lang];
+    renderToc();
+    syncBackButton();
+    window.scrollTo(0, 0);
+  }
+
+
+  /* =======================================================
+     8. ЭКРАН ЧТЕНИЯ
+     ======================================================= */
+  function openChapter(ch, keepPct) {
+    if (current && current !== ch) saveNow();
+    current = ch;
+    closeSheet(true);
+
+    els.toc.hidden = true;
+    els.reader.hidden = false;
+
+    els.kicker.hidden = !ch.num;
+    els.kicker.textContent = ch.num ? t('chapter', { n: ch.num }) : '';
+    els.h1.textContent = title(ch);
+    els.barTitle.textContent = fullName(ch);
+    document.title = fullName(ch) + ' — ' + BOOK.title[lang];
+
+    const txt = chapterText(ch);
+    els.trNote.hidden = !txt.fallback;
+    els.prose.lang = txt.lang;                 // переносы слов по правилам языка текста
+
+    const frag = document.createDocumentFragment();
+    if (!txt.paras.length) {
+      frag.append(el('p', 'empty-paid', t('emptyPaid')));
+    } else {
+      txt.paras.forEach((text) => {
+        const p = el('p');
+        if (/^(\*\s*){3,}$|^⁂$/.test(text)) { p.className = 'break'; p.textContent = '⁂'; }
+        else p.textContent = text;
+        frag.append(p);
+      });
+    }
+    els.prose.replaceChildren(frag);
+    renderEnd(ch);
+
+    Store.set('last', ch.id);
+    showBar(true);
+    syncBackButton();
+
+    // Возвращаемся туда, где остановились
+    const saved = progress[ch.id];
+    userScrolled = false;
+    const restore = () => {
+      if (keepPct != null) scrollToPct(keepPct);
+      else if (saved && !saved.done && saved.lang === txt.lang) restoreAnchor(saved);
+      else if (saved && !saved.done && saved.pct) scrollToPct(saved.pct / 100);
+      else window.scrollTo(0, 0);
+      lastY = window.scrollY;
+      updateProgress();
+    };
+    restore();
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (current === ch && !userScrolled) restore(); });
+    }
+  }
+
+  function renderEnd(ch) {
+    const i = CHAPTERS.indexOf(ch);
+    const next = CHAPTERS[i + 1];
+    const prev = CHAPTERS[i - 1];
+    els.end.replaceChildren();
+
+    if (next && isOpen(next)) {
+      const b = el('button', 'cta');
+      b.type = 'button';
+      b.append(el('b', '', t('nextChapter')), el('span', '', fullName(next)));
+      b.onclick = () => replaceHash(next.id);
+      els.end.append(b);
+    } else if (next) {
+      els.end.append(buildPaywall(next));      // главное место продажи — сразу после обрыва
+    } else {
+      els.end.append(el('p', 'end-note', t('lastNote')));
+    }
+
+    const links = el('div', 'end-links');
+    if (prev && isOpen(prev)) {
+      const pb = el('button', 'link-btn', t('prev', { name: fullName(prev) }));
+      pb.type = 'button';
+      pb.onclick = () => replaceHash(prev.id);
+      links.append(pb);
+    } else {
+      links.append(el('span'));
+    }
+    const tb = el('button', 'link-btn', t('contents'));
+    tb.type = 'button';
+    tb.onclick = goToc;
+    links.append(tb);
+    els.end.append(links);
+  }
+
+  function showBar(show) { els.bar.classList.toggle('is-hidden', !show); }
+
+  function getPct() {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    return max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 1;
+  }
+  function scrollToPct(pct) {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.max(0, max * pct));
+  }
+  function updateProgress() { els.progress.style.transform = 'scaleX(' + getPct() + ')'; }
+
+  // Место чтения запоминается по абзацу — не сбивается при смене шрифта и размера
+  function topLine() { return els.bar.offsetHeight + 8; }
+
+  function currentAnchor() {
+    const ps = els.prose.children;
+    const line = topLine();
+    if (!ps.length || ps[0].getBoundingClientRect().top >= line) return { p: -1, off: 0 };
+    let lo = 0, hi = ps.length - 1, found = ps.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (ps[mid].getBoundingClientRect().bottom > line) { found = mid; hi = mid - 1; }
+      else lo = mid + 1;
+    }
+    const r = ps[found].getBoundingClientRect();
+    return { p: found, off: Math.min(1, Math.max(0, (line - r.top) / (r.height || 1))) };
+  }
+
+  function restoreAnchor(a) {
+    const ps = els.prose.children;
+    if (!a || a.p < 0 || !ps[a.p]) { window.scrollTo(0, 0); return; }
+    const r = ps[a.p].getBoundingClientRect();
+    window.scrollTo(0, window.scrollY + r.top - topLine() + a.off * r.height);
+  }
+
+  function endReached() { return els.end.getBoundingClientRect().top < window.innerHeight - 40; }
+
+  function saveNow() {
+    if (!current) return;
+    clearTimeout(saveTimer);
+    const prev = progress[current.id] || {};
+    const a = currentAnchor();
+    const done = !!prev.done || endReached();
+    progress[current.id] = {
+      p: a.p,
+      off: Math.round(a.off * 1000) / 1000,
+      pct: done ? 100 : Math.round(getPct() * 100),
+      done: done,
+      lang: els.prose.lang,
+    };
+    Store.set('progress', progress);
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 400);
+  }
+
+  function onScroll() {
+    ticking = false;
+    if (!current) return;
+    const y = window.scrollY;
+    const dy = y - lastY;
+    if (y < 60) showBar(true);
+    else if (dy > 6) showBar(false);
+    else if (dy < -6) showBar(true);
+    lastY = y;
+    updateProgress();
+    scheduleSave();
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(onScroll); }
+  }, { passive: true });
+
+  ['touchstart', 'wheel', 'keydown'].forEach((type) =>
+    window.addEventListener(type, () => { userScrolled = true; }, { passive: true }));
+
+  els.prose.addEventListener('click', () => {
+    const sel = window.getSelection && window.getSelection();
+    if (sel && String(sel).length) return;
+    showBar(els.bar.classList.contains('is-hidden'));
+  });
+
+  $('back').onclick = goToc;
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+
+
+  /* =======================================================
+     9. НИЖНИЕ ПАНЕЛИ
+     ======================================================= */
+  let openSheetEl = null, lastFocus = null, closeTimer = 0;
+
+  function openSheet(sheet) {
+    if (openSheetEl) closeSheet(true);
+    clearTimeout(closeTimer);
+    lastFocus = document.activeElement;
+    els.scrim.hidden = false;
+    sheet.hidden = false;
+    sheet.getBoundingClientRect();
+    els.scrim.classList.add('is-open');
+    sheet.classList.add('is-open');
+    openSheetEl = sheet;
+    sheet.focus({ preventScroll: true });
+  }
+
+  function closeSheet(instant) {
+    const sheet = openSheetEl;
+    if (!sheet) return;
+    openSheetEl = null;
+    els.scrim.classList.remove('is-open');
+    sheet.classList.remove('is-open');
+    const finish = () => {
+      if (!sheet.classList.contains('is-open')) sheet.hidden = true;
+      if (!openSheetEl) els.scrim.hidden = true;
+    };
+    if (instant) finish(); else closeTimer = setTimeout(finish, 280);
+    if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+  }
+
+  els.scrim.onclick = () => closeSheet();
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+  document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => closeSheet(); });
+  document.querySelectorAll('[data-open-settings]').forEach((b) => {
+    b.onclick = () => { renderSub(); openSheet(els.settings); };
+  });
+
+
+  /* =======================================================
+     10. ПОДПИСКА И ОПЛАТА
+     Читатель: кнопка «Открыть за ⭐» → окно оплаты → глава сразу открыта.
+     Сейчас окно оплаты тестовое. На шаге 6 в buyStars() будет так:
+       сервер создаёт ссылку на оплату (createInvoiceLink, валюта XTR,
+       subscription_period 30 дней) → tg.openInvoice(ссылка, статус => ...)
+       → при статусе 'paid' сервер включает доступ.
+     ======================================================= */
+  function buildPaywall(ch) {
+    const box = el('div', 'paywall');
+    const k = el('p', 'pw-kicker');
+    k.append(lockIcon(), document.createTextNode(fullName(ch)));
+    if (ch.adult) k.append(el('span', 'badge', '18+'));
+    box.append(k, el('h3', 'pw-title', t('pwTitle')), el('p', 'pw-perks', t('pwPerks')));
+    box.append(el('p', 'pw-price', t('pwPrice', { stars: PRICE.stars, usd: PRICE.usd })));
+
+    const buy = el('button', 'btn', t('pwUnlock', { stars: PRICE.stars }));
+    buy.type = 'button';
+    buy.onclick = () => { pending = ch; buyStars(); };
+    box.append(buy);
+
+    // Русским код подписчика Boosty показываем заметной кнопкой, остальным — ссылкой
+    const code = el('button', lang === 'ru' ? 'btn btn-ghost' : 'text-link', t('pwCode'));
+    code.type = 'button';
+    code.onclick = () => { pending = ch; openCode(); };
+    box.append(code, el('p', 'pw-cancel', t('pwCancel')));
+    return box;
+  }
+
+  function openLock(ch) {
+    pending = ch;
+    $('lock-body').replaceChildren(buildPaywall(ch));
+    openSheet(els.lock);
+  }
+
+  function buyStars() {
+    openSheet(els.pay);   // ТЕСТ. На шаге 6 — tg.openInvoice(...)
+  }
+
+  $('pay-btn').onclick = () => {
+    const btn = $('pay-btn');
+    btn.disabled = true;
+    btn.textContent = t('paying');
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = t('payBtn', { stars: PRICE.stars });
+      grantAccess('stars');
+      closeSheet(true);
+      afterUnlock(t('paidToast'));
+    }, 900);
+  };
+
+  function grantAccess(via) {
+    access = { until: Date.now() + PRICE.days * 864e5, via: via };
+    Store.set('access', access);
+  }
+
+  function afterUnlock(message) {
+    try { tg && tg.HapticFeedback.notificationOccurred('success'); } catch (e) {}
+    toast(message);
+    const ch = pending;
+    pending = null;
+    if (ch) {
+      if (current) replaceHash(ch.id); else goChapter(ch);
+    } else if (current) {
+      renderEnd(current);
+    } else {
+      renderToc();
+    }
+  }
+
+  // --- Код доступа. Сейчас проверка тестовая; на шаге с кодами проверять будет сервер
+  function openCode() {
+    $('code-input').value = '';
+    $('code-error').textContent = '';
+    openSheet(els.code);
+    setTimeout(() => $('code-input').focus(), 300);
+  }
+
+  function checkCode(raw) {
+    return String(raw || '').trim().toUpperCase() === TEST_CODE;
+  }
+
+  function submitCode() {
+    const value = $('code-input').value;
+    if (!value.trim()) { $('code-error').textContent = t('codeEmpty'); return; }
+    if (!checkCode(value)) { $('code-error').textContent = t('codeBad'); return; }
+    grantAccess('code');
+    closeSheet(true);
+    afterUnlock(t('codeOk', { date: fmtDate(access.until) }));
+  }
+
+  $('code-btn').onclick = submitCode;
+  $('code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCode(); });
+
+  // Ссылка с кодом: t.me/бот?startapp=code_TEST  (в браузере для теста: reader.html?code=TEST)
+  // Ссылка на главу: t.me/бот?startapp=ch3
+  let startHandled = false;
+  function handleStartParam() {
+    if (startHandled) return;
+    const q = new URLSearchParams(location.search);
+    const param = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) ||
+      q.get('tgWebAppStartParam') || (q.get('code') ? 'code_' + q.get('code') : '');
+    if (!param) return;
+    startHandled = true;
+
+    if (param.indexOf('code_') === 0) {
+      if (checkCode(param.slice(5))) {
+        grantAccess('code');
+        afterUnlock(t('codeOk', { date: fmtDate(access.until) }));
+      } else {
+        toast(t('codeBad'));
+      }
+      return;
+    }
+    const ch = CHAPTERS.find((c) => c.id === param);
+    if (ch) { if (isOpen(ch)) replaceHash(ch.id); else openLock(ch); }   // без лишней записи в истории
+  }
+
+  function renderSub() {
+    $('sub-status').textContent = hasAccess() ? t('subActive', { date: fmtDate(access.until) }) : t('subNone');
+    $('sub-cancel').hidden = !hasAccess();
+  }
+
+  $('sub-cancel').onclick = () => {
+    access = null;
+    Store.remove('access');
+    renderSub();
+    toast(t('subCanceled'));
+    if (current && !isOpen(current)) { closeSheet(true); replaceHash(''); }
+    else if (current) renderEnd(current);
+    else renderToc();
+  };
+
+
+  /* =======================================================
+     11. НАСТРОЙКИ ОФОРМЛЕНИЯ И ЯЗЫК
+     ======================================================= */
+  function buildSettings() {
+    const box = $('font-list');
+    FONTS.forEach((f) => {
+      const b = el('button', 'font-opt');
+      b.type = 'button';
+      b.dataset.font = f.id;
+      const sample = el('span', 'sample');
+      sample.style.fontFamily = f.css;
+      b.append(sample, el('span', 'name', f.name));
+      b.onclick = () => { S.font = f.id; applySettings(true); };
+      box.append(b);
+    });
+
+    document.querySelectorAll('[data-theme-v]').forEach((b) => {
+      b.onclick = () => { S.theme = b.dataset.themeV; applySettings(false); };
+    });
+    document.querySelectorAll('[data-line]').forEach((b) => {
+      b.onclick = () => { S.line = b.dataset.line; applySettings(true); };
+    });
+    document.querySelectorAll('[data-justify]').forEach((b) => {
+      b.onclick = () => { S.justify = b.dataset.justify === '1'; applySettings(true); };
+    });
+    document.querySelectorAll('[data-lang]').forEach((b) => {
+      b.onclick = () => setLang(b.dataset.lang, true);
+    });
+    $('size-down').onclick = () => { S.size = Math.max(SIZE_MIN, S.size - 1); applySettings(true); };
+    $('size-up').onclick   = () => { S.size = Math.min(SIZE_MAX, S.size + 1); applySettings(true); };
+
+    const reset = $('reset');
+    let armed = 0;
+    reset.onclick = () => {
+      if (!armed) {
+        reset.textContent = t('resetConfirm');
+        armed = setTimeout(() => { armed = 0; reset.textContent = t('reset'); }, 3000);
+        return;
+      }
+      clearTimeout(armed); armed = 0;
+      progress = {};
+      Store.set('progress', progress);
+      Store.remove('last');
+      reset.textContent = t('resetDone');
+      setTimeout(() => { reset.textContent = t('reset'); }, 2000);
+      if (!current) renderToc();
+    };
+  }
+
+  function syncSettingsUI() {
+    const press = (sel, test) => document.querySelectorAll(sel).forEach((b) => b.setAttribute('aria-pressed', String(test(b))));
+    press('[data-theme-v]', (b) => b.dataset.themeV === S.theme);
+    press('.font-opt',      (b) => b.dataset.font === S.font);
+    press('[data-line]',    (b) => b.dataset.line === S.line);
+    press('[data-justify]', (b) => (b.dataset.justify === '1') === !!S.justify);
+    press('[data-lang]',    (b) => b.dataset.lang === lang);
+    document.querySelectorAll('.font-opt .sample').forEach((s) => {
+      s.textContent = lang === 'ru' ? 'Ветки не уползают' : 'Branches don’t crawl';
+    });
+    $('size-val').textContent = S.size;
+    $('size-down').disabled = S.size <= SIZE_MIN;
+    $('size-up').disabled = S.size >= SIZE_MAX;
+  }
+
+  function applySettings(keepPlace) {
+    const anchor = keepPlace && current ? currentAnchor() : null;
+    const font = FONTS.find((f) => f.id === S.font) || FONTS[0];
+
+    root.dataset.theme = S.theme;
+    root.style.setProperty('--read-font', font.css);
+    root.style.setProperty('--read-size', S.size + 'px');
+    root.style.setProperty('--read-lh', String(LINE[S.line] || LINE.normal));
+    els.prose.classList.toggle('is-justify', !!S.justify);
+
+    const color = THEME_COLOR[S.theme] || THEME_COLOR.dark;
+    els.metaTheme.setAttribute('content', color);
+    if (tg) { try { tg.setHeaderColor(color); tg.setBackgroundColor(color); } catch (e) {} }
+
+    if (anchor) { restoreAnchor(anchor); lastY = window.scrollY; updateProgress(); }
+    syncSettingsUI();
+    Store.set('settings', S);
+  }
+
+  function setLang(next, remember) {
+    if (remember) { S.lang = next; Store.set('settings', S); }
+    if (next === lang) { syncSettingsUI(); return; }
+    lang = next;
+    applyI18n();
+    syncSettingsUI();
+    renderSub();
+    if (current) { const pct = getPct(); openChapter(current, pct); }
+    else renderToc();
+  }
+
+
+  /* =======================================================
+     12. TELEGRAM
+     Срабатывает, только когда страница открыта внутри Telegram.
+     ======================================================= */
+  function syncBackButton() {
+    if (!tg) return;
+    try { if (current) tg.BackButton.show(); else tg.BackButton.hide(); } catch (e) {}
+  }
+
+  function initTelegram() {
+    const w = window.Telegram && window.Telegram.WebApp;
+    if (!w || !w.initData || tg) return;     // открыто в обычном браузере
+    tg = w;
+    try { tg.ready(); tg.expand(); } catch (e) {}
+    try { tg.disableVerticalSwipes(); } catch (e) {}   // чтобы свайп по тексту не закрывал читалку
+    try { tg.BackButton.onClick(goToc); } catch (e) {}
+    if (!S.lang) setLang(detectLang(), false);
+    applySettings(false);
+    syncBackButton();
+    handleStartParam();
+  }
+  window.__onTgSdk = initTelegram;
+
+
+  /* =======================================================
+     13. ЗАПУСК
+     ======================================================= */
+  buildSettings();
+  applyI18n();
+  applySettings(false);
+  window.addEventListener('hashchange', route);
+  route();
+  initGate();
+  initTelegram();
+  // Внутри Telegram ссылку разбирает initTelegram(), когда загрузится библиотека
+  if (!/tgWebApp/.test(location.hash + location.search)) handleStartParam();
+})();
+</script>
+</body>
+</html>
