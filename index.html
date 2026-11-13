@@ -1831,54 +1831,136 @@ Whatever. I take another hit and, cheerfully whistling a tune, head into the for
      Тап справа — вперёд, слева — назад, в середине — показать панель.
      ======================================================= */
 
-  // Звук перелистывания синтезируется прямо в браузере: шум бумаги через фильтр.
+  // Звук перелистывания.
+  // Если рядом с читалкой лежит файл page-turn.mp3 — играет он (настоящая запись лучше любой синтетики).
+  // Если файла нет — звук «листа бумаги» собирается прямо в браузере.
+  // Звук готовится заранее, а тишина в начале записи обрезается, чтобы он не опаздывал.
   const Sound = (function () {
-    let ctx = null, noise = null;
-    function init() {
-      if (ctx) return;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      ctx = new AC();
-      const len = Math.floor(ctx.sampleRate * 0.6);
-      noise = ctx.createBuffer(1, len, ctx.sampleRate);
-      const d = noise.getChannelData(0);
-      let last = 0;
-      for (let i = 0; i < len; i++) {
-        last = 0.75 * last + 0.25 * (Math.random() * 2 - 1);
-        d[i] = last * 2.2;
+    const FILE = 'page-turn.mp3';
+    let ctx = null, buf = null, offset = 0, preparing = false;
+
+    function context() {
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        try { ctx = new AC({ latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
       }
+      return ctx;
     }
+
+    function decode(data) {
+      return new Promise((ok, fail) => {
+        const r = ctx.decodeAudioData(data, ok, fail);   // старый Safari понимает только колбэки
+        if (r && r.then) r.then(ok, fail);
+      });
+    }
+
+    function trimStart(b) {                     // где в записи начинается сам звук
+      const d = b.getChannelData(0);
+      let peak = 0;
+      for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+      const limit = peak * 0.05;
+      let i = 0;
+      while (i < d.length && Math.abs(d[i]) < limit) i++;
+      return Math.max(0, i / b.sampleRate - 0.004);
+    }
+
+    // Синтетический лист бумаги: короткий сухой «шорх» + хруст волокон + мягкий хлопок в конце.
+    // Почти вся громкость — в первые сотые доли секунды, без медленного разгона.
+    function synth() {
+      const sr = ctx.sampleRate, len = Math.floor(sr * 0.3);
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OAC) return Promise.reject(new Error('no offline audio'));
+      const off = new OAC(1, len, sr);
+
+      const white = off.createBuffer(1, len, sr);
+      const w = white.getChannelData(0);
+      for (let i = 0; i < len; i++) w[i] = Math.random() * 2 - 1;
+
+      const crackle = off.createBuffer(1, len, sr);   // редкие щелчки — хруст бумаги
+      const c = crackle.getChannelData(0);
+      for (let k = 0; k < 70; k++) {
+        const at = Math.floor(Math.pow(Math.random(), 1.8) * sr * 0.14);
+        const amp = (0.4 + Math.random() * 0.6) * (Math.random() < 0.5 ? -1 : 1);
+        for (let j = 0; j < 3 && at + j < len; j++) c[at + j] += amp * (1 - j / 3);
+      }
+
+      const t = 0;
+      // 1) шорх: шум, фильтр уходит вверх, быстро гаснет
+      const s1 = off.createBufferSource(); s1.buffer = white;
+      const hp = off.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1700;
+      const bp = off.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+      bp.frequency.setValueAtTime(2800, t);
+      bp.frequency.exponentialRampToValueAtTime(7000, t + 0.07);
+      bp.frequency.exponentialRampToValueAtTime(3600, t + 0.2);
+      const g1 = off.createGain();
+      g1.gain.setValueAtTime(0.0001, t);
+      g1.gain.exponentialRampToValueAtTime(0.6, t + 0.005);
+      g1.gain.exponentialRampToValueAtTime(0.2, t + 0.045);
+      g1.gain.exponentialRampToValueAtTime(0.05, t + 0.13);
+      g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.27);
+      s1.connect(hp); hp.connect(bp); bp.connect(g1); g1.connect(off.destination);
+
+      // 2) хруст волокон
+      const s2 = off.createBufferSource(); s2.buffer = crackle;
+      const hp2 = off.createBiquadFilter(); hp2.type = 'highpass'; hp2.frequency.value = 3200;
+      const g2 = off.createGain(); g2.gain.value = 0.35;
+      s2.connect(hp2); hp2.connect(g2); g2.connect(off.destination);
+
+      // 3) мягкий хлопок — лист лёг
+      const s3 = off.createBufferSource(); s3.buffer = white;
+      const lp = off.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+      const g3 = off.createGain();
+      g3.gain.setValueAtTime(0.0001, t);
+      g3.gain.setValueAtTime(0.0001, t + 0.06);
+      g3.gain.exponentialRampToValueAtTime(0.35, t + 0.075);
+      g3.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      s3.connect(lp); lp.connect(g3); g3.connect(off.destination);
+
+      s1.start(t); s2.start(t); s3.start(t);
+      return new Promise((ok, fail) => {
+        off.oncomplete = (e) => ok(e.renderedBuffer);
+        const r = off.startRendering();
+        if (r && r.then) r.then(ok, fail);
+      });
+    }
+
+    // Готовим звук заранее (при открытии главы), чтобы первое перелистывание не было беззвучным
+    function prepare() {
+      if (buf || preparing || !context()) return;
+      preparing = true;
+      fetch(FILE)
+        .then((r) => { if (!r.ok) throw new Error('no file'); return r.arrayBuffer(); })
+        .then(decode)
+        .then((b) => { buf = b; offset = trimStart(b); })
+        .catch(() => synth().then((b) => { buf = b; offset = 0; }))
+        .catch(() => {})
+        .then(() => { preparing = false; });
+    }
+
+    // Браузер разрешает звук только после касания — «будим» его при первом касании страницы
+    function wake() {
+      if (!context()) return;
+      if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+      prepare();
+    }
+
     function play() {
       if (!S.sound) return;
+      wake();
+      if (!buf) return;
       try {
-        init();
-        if (!ctx) return;
-        if (ctx.state === 'suspended') ctx.resume();
-        const t0 = ctx.currentTime + 0.005;
         const src = ctx.createBufferSource();
-        src.buffer = noise;
-        src.playbackRate.value = 0.85 + Math.random() * 0.3;
-        const hp = ctx.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 400;
-        const bp = ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.Q.value = 0.9;
-        bp.frequency.setValueAtTime(1100, t0);
-        bp.frequency.exponentialRampToValueAtTime(4200, t0 + 0.16);
-        bp.frequency.exponentialRampToValueAtTime(1500, t0 + 0.36);
-        const g = ctx.createGain();               // два всплеска: страница поднялась и легла
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(0.32, t0 + 0.035);
-        g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.17);
-        g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.25);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.44);
-        src.connect(hp); hp.connect(bp); bp.connect(g); g.connect(ctx.destination);
-        src.start(t0);
-        src.stop(t0 + 0.48);
+        src.buffer = buf;
+        src.playbackRate.value = 0.94 + Math.random() * 0.12;   // каждый раз чуть по-разному
+        const g = ctx.createGain();
+        g.gain.value = 0.9;
+        src.connect(g); g.connect(ctx.destination);
+        src.start(0, offset);
       } catch (e) {}
     }
-    return { play: play };
+
+    return { play: play, wake: wake, prepare: prepare };
   })();
 
   const Pager = (function () {
@@ -1986,6 +2068,7 @@ Whatever. I take another hit and, cheerfully whistling a tune, head into the for
         article.append(sentinel);
         flowBase.append(article);
         page = 0;
+        Sound.prepare();
         setTimeout(hint, 1600);
       }
       layout();
@@ -2266,6 +2349,7 @@ Whatever. I take another hit and, cheerfully whistling a tune, head into the for
     // ======================= жесты =======================
     let start = null;
     pager.addEventListener('pointerdown', (e) => {
+      Sound.wake();
       stopHint();
       if (!active || busy || (e.button && e.button > 0)) return;
       if (e.target.closest('button, a, input')) return;
@@ -2321,6 +2405,7 @@ Whatever. I take another hit and, cheerfully whistling a tune, head into the for
 
     document.addEventListener('keydown', (e) => {
       if (!active || !els.scrim.hidden) return;
+      Sound.wake();
       if (['ArrowRight', 'PageDown', ' '].indexOf(e.key) >= 0) { e.preventDefault(); turn(1); }
       if (['ArrowLeft', 'PageUp'].indexOf(e.key) >= 0) { e.preventDefault(); turn(-1); }
     });
